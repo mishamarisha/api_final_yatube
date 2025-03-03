@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, permissions, filters
+from rest_framework import viewsets, permissions, filters, permissions
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.exceptions import PermissionDenied, NotAuthenticated
 
@@ -16,26 +16,29 @@ from .serializers import (
 User = get_user_model()
 
 
-class AuthorPermissionMixin:
-    def perform_update(self, serializer):
-        if not self.request.user.is_authenticated:
+class AuthorPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if not request.user.is_authenticated:
             raise NotAuthenticated('Пользователь не авторизован.')
-        if serializer.instance.author.username != self.request.user.username:
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        if not request.user.is_authenticated:
+            raise NotAuthenticated('Пользователь не авторизован.')
+        if obj.author.username != request.user.username:
             raise PermissionDenied('Изменение чужого контента запрещено.')
-        return super().perform_update(serializer)
-
-    def perform_destroy(self, instance):
-        if not self.request.user.is_authenticated:
-            raise NotAuthenticated('Пользователь не авторизован.')
-        if instance.author.username != self.request.user.username:
-            raise PermissionDenied('Удаление чужого контента запрещено.')
-        return super().perform_destroy(instance)
+        return True
 
 
-class PostViewSet(AuthorPermissionMixin, viewsets.ModelViewSet):
+class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     pagination_class = LimitOffsetPagination
+    permission_classes = (AuthorPermission,)
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -47,8 +50,9 @@ class GroupViewSet(viewsets.ModelViewSet):
     http_method_names = ['get']
 
 
-class CommentViewSet(AuthorPermissionMixin, viewsets.ModelViewSet):
+class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
+    permission_classes = (AuthorPermission,)
 
     def get_post(self):
         post_id = self.kwargs.get('post_id')

@@ -1,5 +1,4 @@
 from rest_framework import permissions
-from rest_framework.exceptions import PermissionDenied
 
 
 class AuthorOrSafeMethodsPermission(permissions.BasePermission):
@@ -9,8 +8,6 @@ class AuthorOrSafeMethodsPermission(permissions.BasePermission):
             or request.method in permissions.SAFE_METHODS)
 
     def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        if obj.author.username != request.user.username:
-            raise PermissionDenied('Изменение чужого контента запрещено.')
-        return True
+        return (
+            obj.author.username == request.user.username
+            or request.method in permissions.SAFE_METHODS)

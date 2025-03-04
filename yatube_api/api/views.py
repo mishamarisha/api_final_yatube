@@ -1,8 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, permissions, filters, permissions
+from rest_framework import viewsets, permissions, filters
 from rest_framework.pagination import LimitOffsetPagination
-from rest_framework.exceptions import PermissionDenied, NotAuthenticated
 
 from posts.models import Post, Group
 from .serializers import (
@@ -11,34 +10,17 @@ from .serializers import (
     CommentSerializer,
     FollowSerializer
 )
+from .permissions import AuthorOrSafeMethodsPermission
 
 
 User = get_user_model()
-
-
-class AuthorPermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        if not request.user.is_authenticated:
-            raise NotAuthenticated('Пользователь не авторизован.')
-        return True
-
-    def has_object_permission(self, request, view, obj):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        if not request.user.is_authenticated:
-            raise NotAuthenticated('Пользователь не авторизован.')
-        if obj.author.username != request.user.username:
-            raise PermissionDenied('Изменение чужого контента запрещено.')
-        return True
 
 
 class PostViewSet(viewsets.ModelViewSet):
     queryset = Post.objects.all()
     serializer_class = PostSerializer
     pagination_class = LimitOffsetPagination
-    permission_classes = (AuthorPermission,)
+    permission_classes = (AuthorOrSafeMethodsPermission,)
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -52,7 +34,7 @@ class GroupViewSet(viewsets.ModelViewSet):
 
 class CommentViewSet(viewsets.ModelViewSet):
     serializer_class = CommentSerializer
-    permission_classes = (AuthorPermission,)
+    permission_classes = (AuthorOrSafeMethodsPermission,)
 
     def get_post(self):
         post_id = self.kwargs.get('post_id')
